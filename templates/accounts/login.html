@@ -1,0 +1,35 @@
+{% extends 'base.html' %}
+
+{% block title %}Sign In - Project Management System{% endblock %}
+
+{% block content %}
+<div class="auth-wrapper">
+  <div class="card auth-card">
+    <div class="auth-header">
+      <h1>Sign In</h1>
+      <p style="color: var(--text-muted); font-size: 0.85rem;">SRS FR-02 & SR-05: Authenticated Sessions & Rate Limiting</p>
+    </div>
+
+    <form method="POST" action="{% url 'accounts:login' %}" novalidate id="login-form">
+      {% csrf_token %}
+      <div class="form-group">
+        <label for="email" class="form-label">Email Address *</label>
+        <input type="email" name="email" id="email" class="form-control" required placeholder="name@example.com" autocomplete="email">
+      </div>
+
+      <div class="form-group">
+        <label for="password" class="form-label">Password *</label>
+        <input type="password" name="password" id="password" class="form-control" required placeholder="••••••••" autocomplete="current-password">
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;" id="btn-submit-login">
+        Sign In
+      </button>
+    </form>
+
+    <div style="margin-top: 1.5rem; text-align: center; font-size: 0.85rem; color: var(--text-muted);">
+      Don't have an account? <a href="{% url 'accounts:register' %}">Create an account</a>
+    </div>
+  </div>
+</div>
+{% endblock %}

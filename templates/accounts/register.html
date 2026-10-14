@@ -1,0 +1,40 @@
+{% extends 'base.html' %}
+
+{% block title %}Register - Project Management System{% endblock %}
+
+{% block content %}
+<div class="auth-wrapper">
+  <div class="card auth-card">
+    <div class="auth-header">
+      <h1>Create an Account</h1>
+      <p style="color: var(--text-muted); font-size: 0.85rem;">SRS FR-01: Unique email account registration</p>
+    </div>
+
+    <form method="POST" action="{% url 'accounts:register' %}" novalidate id="register-form">
+      {% csrf_token %}
+      <div class="form-group">
+        <label for="email" class="form-label">Email Address *</label>
+        <input type="email" name="email" id="email" class="form-control" required placeholder="name@example.com" autocomplete="email">
+      </div>
+
+      <div class="form-group">
+        <label for="full_name" class="form-label">Full Name</label>
+        <input type="text" name="full_name" id="full_name" class="form-control" placeholder="John Doe" autocomplete="name">
+      </div>
+
+      <div class="form-group">
+        <label for="password" class="form-label">Password * (Min. 8 characters)</label>
+        <input type="password" name="password" id="password" class="form-control" required minlength="8" placeholder="••••••••" autocomplete="new-password">
+      </div>
+
+      <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;" id="btn-submit-register">
+        Register Account
+      </button>
+    </form>
+
+    <div style="margin-top: 1.5rem; text-align: center; font-size: 0.85rem; color: var(--text-muted);">
+      Already have an account? <a href="{% url 'accounts:login' %}">Sign in</a>
+    </div>
+  </div>
+</div>
+{% endblock %}
