@@ -1,0 +1,53 @@
+{% extends 'base.html' %}
+
+{% block title %}Notifications - Project Management System{% endblock %}
+
+{% block content %}
+<div style="max-width: 800px; margin: 0 auto;">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+    <div>
+      <h1 style="font-size: 1.6rem; font-weight: 700;">In-App Notifications</h1>
+      <p style="color: var(--text-muted); font-size: 0.85rem;">SRS FR-17: Task assignment and project invitation updates</p>
+    </div>
+    {% if unread_notifications_count > 0 %}
+      <form method="POST" action="{% url 'notifications:mark_all_read' %}">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline" style="font-size: 0.8rem;">Mark All as Read</button>
+      </form>
+    {% endif %}
+  </div>
+
+  <div class="card" style="padding: 0.5rem 1.25rem;">
+    {% for n in notifications %}
+      <div style="padding: 1rem 0; border-bottom: 1px solid var(--card-border); display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; {% if not n.is_read %}background: rgba(99,102,241,0.04);{% endif %}">
+        <div>
+          <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.3rem;">
+            <strong style="font-size: 0.95rem;">{{ n.title }}</strong>
+            {% if not n.is_read %}
+              <span class="badge badge-critical" style="font-size: 0.65rem;">New</span>
+            {% endif %}
+          </div>
+          <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 0.5rem;">{{ n.message }}</p>
+          <div style="font-size: 0.75rem; color: #64748b;">{{ n.created_at|date:"M d, Y H:i" }}</div>
+        </div>
+
+        <div style="display: flex; gap: 0.5rem; align-items: center;">
+          {% if n.link %}
+            <a href="{{ n.link }}" class="btn btn-primary" style="padding: 0.3rem 0.65rem; font-size: 0.75rem;">View</a>
+          {% endif %}
+          {% if not n.is_read %}
+            <form method="POST" action="{% url 'notifications:mark_read' notification_id=n.id %}">
+              {% csrf_token %}
+              <button type="submit" class="btn btn-outline" style="padding: 0.3rem 0.65rem; font-size: 0.75rem;">Done</button>
+            </form>
+          {% endif %}
+        </div>
+      </div>
+    {% empty %}
+      <div style="text-align: center; padding: 2.5rem; color: var(--text-muted);">
+        No notifications yet.
+      </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
