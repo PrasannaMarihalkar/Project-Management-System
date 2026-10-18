@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% block title %}Access Denied - 403{% endblock %}
+{% block content %}
+<div class="card" style="max-width: 500px; margin: 3rem auto; text-align: center; padding: 2.5rem;">
+  <h1 style="font-size: 3rem; color: var(--danger); margin-bottom: 0.5rem;">403</h1>
+  <h2 style="font-size: 1.25rem; margin-bottom: 1rem;">Access Denied</h2>
+  <p style="color: var(--text-muted); margin-bottom: 1.5rem;">
+    {{ message|default:"You do not have permission to view or modify this project resource." }}
+  </p>
+  <a href="{% url 'projects:project_list' %}" class="btn btn-primary">Return to Projects</a>
+</div>
+{% endblock %}

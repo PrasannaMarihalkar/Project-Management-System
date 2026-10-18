@@ -1,0 +1,74 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Project Management System{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+  {% block extra_head %}{% endblock %}
+</head>
+<body>
+  <!-- Header / Navigation -->
+  <header class="navbar" role="banner">
+    <div class="nav-brand">
+      <a href="{% url 'projects:project_list' %}" style="color: inherit; display: flex; align-items: center; gap: 0.6rem;">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7"></rect>
+          <rect x="14" y="3" width="7" height="7"></rect>
+          <rect x="14" y="14" width="7" height="7"></rect>
+          <rect x="3" y="14" width="7" height="7"></rect>
+        </svg>
+        <span>PMS</span>
+      </a>
+      <span class="brand-badge">SE Mini-Proj</span>
+    </div>
+
+    <nav class="nav-menu" role="navigation" aria-label="Main Navigation">
+      {% if user.is_authenticated %}
+        <a href="{% url 'projects:project_list' %}" class="nav-link" id="nav-projects-link">Projects</a>
+        <a href="{% url 'notifications:list' %}" class="notification-bell" aria-label="Notifications" id="nav-notifications-link">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+            <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+          </svg>
+          {% if unread_notifications_count > 0 %}
+            <span class="notification-badge">{{ unread_notifications_count }}</span>
+          {% endif %}
+        </a>
+        <span style="font-size: 0.85rem; color: var(--text-muted); font-weight: 500;">
+          {{ user.full_name|default:user.email }}
+        </span>
+        <a href="{% url 'accounts:logout' %}" class="btn btn-outline" style="padding: 0.35rem 0.75rem; font-size: 0.8rem;" id="nav-logout-btn">Sign Out</a>
+      {% else %}
+        <a href="{% url 'accounts:login' %}" class="nav-link" id="nav-login-link">Sign In</a>
+        <a href="{% url 'accounts:register' %}" class="btn btn-primary" style="padding: 0.4rem 0.85rem;" id="nav-register-link">Register</a>
+      {% endif %}
+    </nav>
+  </header>
+
+  <!-- Main Content Container -->
+  <main class="container" role="main">
+    {% if messages %}
+      <div class="alert-container">
+        {% for message in messages %}
+          <div class="alert alert-{{ message.tags|default:'info' }}" role="alert">
+            <span>{{ message }}</span>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer style="text-align: center; padding: 1.5rem; font-size: 0.8rem; color: var(--text-muted); border-top: 1px solid var(--card-border);">
+    Project Management System &bull; Software Engineering Mini-Project &bull; Group 27
+  </footer>
+
+  {% block extra_scripts %}{% endblock %}
+</body>
+</html>

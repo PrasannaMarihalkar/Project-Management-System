@@ -1,0 +1,94 @@
+{% extends 'base.html' %}
+
+{% block title %}Projects - Project Management System{% endblock %}
+
+{% block content %}
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+  <div>
+    <h1 style="font-size: 1.8rem; font-weight: 700;">Projects</h1>
+    <p style="color: var(--text-muted); font-size: 0.9rem;">SRS FR-03: Create and manage your active and archived workspaces</p>
+  </div>
+  <button class="btn btn-primary" onclick="document.getElementById('new-project-modal').classList.add('active')" id="btn-open-create-project">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+    New Project
+  </button>
+</div>
+
+<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1.5rem;" id="projects-grid">
+  {% for item in projects_data %}
+    <div class="card" style="display: flex; flex-direction: column; justify-content: space-between; {% if item.is_archived %}opacity: 0.75;{% endif %}">
+      <div>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
+          <h2 style="font-size: 1.2rem; font-weight: 600;">
+            <a href="{% url 'projects:project_detail' project_id=item.project.id %}">{{ item.project.name }}</a>
+          </h2>
+          <span class="badge {% if item.is_archived %}badge-medium{% else %}badge-low{% endif %}">
+            {% if item.is_archived %}Archived{% else %}Active{% endif %}
+          </span>
+        </div>
+        <p style="color: var(--text-muted); font-size: 0.85rem; margin-bottom: 1rem;">
+          {{ item.project.description|default:"No description provided."|truncatechars:120 }}
+        </p>
+      </div>
+
+      <div style="border-top: 1px solid var(--card-border); padding-top: 0.75rem; display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: var(--text-muted);">
+        <span>Role: <strong>{{ item.role }}</strong></span>
+        <a href="{% url 'projects:project_detail' project_id=item.project.id %}" class="btn btn-outline" style="padding: 0.25rem 0.6rem; font-size: 0.75rem;">
+          Open Board &rarr;
+        </a>
+      </div>
+    </div>
+  {% empty %}
+    <div class="card" style="grid-column: 1 / -1; text-align: center; padding: 3rem;">
+      <h3 style="margin-bottom: 0.5rem;">No Projects Yet</h3>
+      <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Create your first project to get started with task management and Kanban boards.</p>
+      <button class="btn btn-primary" onclick="document.getElementById('new-project-modal').classList.add('active')">Create Project</button>
+    </div>
+  {% endfor %}
+</div>
+
+<!-- Modal: New Project (NFR-04: <= 10 interactions) -->
+<div class="modal-overlay" id="new-project-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 style="font-size: 1.25rem;">Create New Project</h2>
+      <button class="modal-close" aria-label="Close modal">&times;</button>
+    </div>
+    <form method="POST" action="{% url 'projects:project_list' %}" id="create-project-form">
+      {% csrf_token %}
+      <div class="form-group">
+        <label for="project-name" class="form-label">Project Name *</label>
+        <input type="text" name="name" id="project-name" class="form-control" required placeholder="e.g. NextGen Web App">
+      </div>
+      <div class="form-group">
+        <label for="project-desc" class="form-label">Description</label>
+        <textarea name="description" id="project-desc" class="form-control" rows="3" placeholder="Goals, scope and objectives..."></textarea>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div class="form-group">
+          <label for="project-start" class="form-label">Start Date</label>
+          <input type="date" name="start_date" id="project-start" class="form-control">
+        </div>
+        <div class="form-group">
+          <label for="project-target" class="form-label">Target Date</label>
+          <input type="date" name="target_date" id="project-target" class="form-control">
+        </div>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+        <button type="button" class="btn btn-secondary btn-modal-close">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="btn-submit-project">Create Project</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+  document.querySelectorAll('.modal-close, .btn-modal-close').forEach(b => {
+    b.addEventListener('click', () => {
+      document.getElementById('new-project-modal').classList.remove('active');
+    });
+  });
+</script>
+{% endblock %}
