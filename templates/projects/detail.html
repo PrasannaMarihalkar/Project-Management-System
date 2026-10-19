@@ -1,0 +1,316 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ project.name }} - Kanban Board{% endblock %}
+
+{% block content %}
+<div class="board-header">
+  <div class="board-title-group">
+    <h1>
+      {{ project.name }}
+      {% if project.is_archived %}
+        <span class="badge badge-medium">Archived (Read-Only)</span>
+      {% else %}
+        <span class="badge badge-low">Active</span>
+      {% endif %}
+      <span style="font-size: 0.8rem; font-weight: normal; color: var(--text-muted);">(Your Role: {{ membership.role }})</span>
+    </h1>
+    <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.25rem;">
+      {{ project.description|default:"No description" }}
+    </p>
+  </div>
+
+  <div style="display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap;">
+    {% if is_manager_or_owner and not project.is_archived %}
+      <button class="btn btn-primary" onclick="document.getElementById('new-task-modal').classList.add('active')" id="btn-create-task">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+        New Task
+      </button>
+    {% endif %}
+
+    {% if is_owner and not project.is_archived %}
+      <button class="btn btn-secondary" onclick="document.getElementById('invite-member-modal').classList.add('active')" id="btn-invite-member">
+        Invite Member
+      </button>
+      <form method="POST" action="{% url 'projects:project_archive' project_id=project.id %}" onsubmit="return confirm('Archive project? It will become permanently read-only.');" style="display: inline;">
+        {% csrf_token %}
+        <button type="submit" class="btn btn-outline" style="color: var(--warning);" id="btn-archive-project">Archive</button>
+      </form>
+    {% endif %}
+
+    {% if is_manager_or_owner %}
+      <a href="{% url 'tasks:project_tasks_csv' project_id=project.id %}" class="btn btn-outline" id="btn-export-csv" download>
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+        Export CSV
+      </a>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Progress Dashboard Summary Cards (SRS FR-11) -->
+<div class="stats-grid">
+  <div class="stat-card">
+    <span class="stat-label">Total Tasks</span>
+    <span class="stat-value" id="dash-total-tasks">-</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Overdue Tasks</span>
+    <span class="stat-value" style="color: var(--danger);" id="dash-overdue-tasks">-</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Estimated Hours</span>
+    <span class="stat-value" id="dash-est-hours">-</span>
+  </div>
+  <div class="stat-card">
+    <span class="stat-label">Actual Logged Hours</span>
+    <span class="stat-value" style="color: var(--success);" id="dash-act-hours">-</span>
+  </div>
+</div>
+
+<!-- Filter Toolbar (SRS FR-08 & FR-14) -->
+<div class="board-toolbar" role="search" aria-label="Task Filters">
+  <div style="flex: 1; min-width: 200px;">
+    <input type="text" id="task-search" class="form-control" placeholder="Search tasks by title or #ID..." aria-label="Search tasks">
+  </div>
+
+  <div style="min-width: 160px;">
+    <select id="filter-assignee" class="form-control" aria-label="Filter by Assignee">
+      <option value="">All Assignees</option>
+      <option value="unassigned">Unassigned</option>
+      {% for m in members %}
+        <option value="{{ m.user.id }}">{{ m.user.full_name|default:m.user.email }}</option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div style="min-width: 140px;">
+    <select id="filter-priority" class="form-control" aria-label="Filter by Priority">
+      <option value="">All Priorities</option>
+      <option value="Low">Low</option>
+      <option value="Medium">Medium</option>
+      <option value="High">High</option>
+      <option value="Critical">Critical</option>
+    </select>
+  </div>
+
+  <div style="min-width: 140px;">
+    <select id="filter-due" class="form-control" aria-label="Filter by Due Status">
+      <option value="">All Due Dates</option>
+      <option value="overdue">Overdue</option>
+      <option value="due_today">Due Today</option>
+      <option value="due_future">Upcoming</option>
+    </select>
+  </div>
+</div>
+
+<!-- 5 Kanban Columns (SRS FR-07) -->
+<div class="board-columns" id="kanban-columns-container">
+  {% for status in "Backlog,To Do,In Progress,Review,Done"|make_list %}
+  {# Handled dynamically in board.js, columns initialized below #}
+  {% endfor %}
+  <div class="kanban-column">
+    <div class="column-header">
+      <span>Backlog</span>
+      <span class="column-count" data-status="Backlog">0</span>
+    </div>
+    <div class="column-body" data-status="Backlog" aria-label="Backlog column"></div>
+  </div>
+
+  <div class="kanban-column">
+    <div class="column-header">
+      <span>To Do</span>
+      <span class="column-count" data-status="To Do">0</span>
+    </div>
+    <div class="column-body" data-status="To Do" aria-label="To Do column"></div>
+  </div>
+
+  <div class="kanban-column">
+    <div class="column-header">
+      <span>In Progress</span>
+      <span class="column-count" data-status="In Progress">0</span>
+    </div>
+    <div class="column-body" data-status="In Progress" aria-label="In Progress column"></div>
+  </div>
+
+  <div class="kanban-column">
+    <div class="column-header">
+      <span>Review</span>
+      <span class="column-count" data-status="Review">0</span>
+    </div>
+    <div class="column-body" data-status="Review" aria-label="Review column"></div>
+  </div>
+
+  <div class="kanban-column">
+    <div class="column-header">
+      <span>Done</span>
+      <span class="column-count" data-status="Done">0</span>
+    </div>
+    <div class="column-body" data-status="Done" aria-label="Done column"></div>
+  </div>
+</div>
+
+<!-- Modal: New Task (SRS FR-05, NFR-04) -->
+<div class="modal-overlay" id="new-task-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 style="font-size: 1.25rem;">Create New Task</h2>
+      <button class="modal-close" aria-label="Close modal">&times;</button>
+    </div>
+    <form method="POST" action="{% url 'tasks:task_list_create' project_id=project.id %}" id="create-task-form">
+      {% csrf_token %}
+      <div class="form-group">
+        <label for="task-title-input" class="form-label">Task Title *</label>
+        <input type="text" name="title" id="task-title-input" class="form-control" required placeholder="Short descriptive title">
+      </div>
+      <div class="form-group">
+        <label for="task-desc-input" class="form-label">Description</label>
+        <textarea name="description" id="task-desc-input" class="form-control" rows="3" placeholder="Context, details, requirements..."></textarea>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div class="form-group">
+          <label for="task-priority-input" class="form-label">Priority</label>
+          <select name="priority" id="task-priority-input" class="form-control">
+            <option value="Low">Low</option>
+            <option value="Medium" selected>Medium</option>
+            <option value="High">High</option>
+            <option value="Critical">Critical</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="task-assignee-input" class="form-label">Assignee</label>
+          <select name="assignee_id" id="task-assignee-input" class="form-control">
+            <option value="">Unassigned</option>
+            {% for m in members %}
+              <option value="{{ m.user.id }}">{{ m.user.full_name|default:m.user.email }} ({{ m.role }})</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+        <div class="form-group">
+          <label for="task-estimate-input" class="form-label">Estimate (Hours, 0.5 step)</label>
+          <input type="number" step="0.5" min="0" name="estimate_hours" id="task-estimate-input" class="form-control" value="0.0">
+        </div>
+        <div class="form-group">
+          <label for="task-due-input" class="form-label">Due Date</label>
+          <input type="date" name="due_date" id="task-due-input" class="form-control">
+        </div>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+        <button type="button" class="btn btn-secondary btn-modal-close">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="btn-submit-task">Create in Backlog</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- Modal: Task Details, Time Logs & Comments -->
+<div class="modal-overlay" id="task-detail-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 id="modal-task-title" style="font-size: 1.25rem;">Task Details</h2>
+      <button class="modal-close" aria-label="Close modal">&times;</button>
+    </div>
+    
+    <div style="margin-bottom: 1rem;">
+      <p id="modal-task-desc" style="color: var(--text-muted); font-size: 0.9rem; white-space: pre-wrap; margin-bottom: 1rem;"></p>
+      
+      <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 0.75rem; background: var(--bg-primary); padding: 0.85rem; border-radius: var(--radius-sm); font-size: 0.8rem;">
+        <div><span style="color: var(--text-muted);">Status:</span> <strong id="modal-task-status">-</strong></div>
+        <div><span style="color: var(--text-muted);">Priority:</span> <strong id="modal-task-priority">-</strong></div>
+        <div><span style="color: var(--text-muted);">Assignee:</span> <strong id="modal-task-assignee">-</strong></div>
+        <div><span style="color: var(--text-muted);">Estimate:</span> <strong id="modal-task-estimate">-</strong></div>
+        <div><span style="color: var(--text-muted);">Actual:</span> <strong id="modal-task-actual">-</strong></div>
+        <div><span style="color: var(--text-muted);">Due:</span> <strong id="modal-task-due">-</strong></div>
+      </div>
+    </div>
+
+    <!-- Status Change (Accessible fallback for NFR-05) -->
+    {% if not project.is_archived %}
+      <div class="form-group" style="margin-top: 1rem;">
+        <label for="modal-status-select" class="form-label">Change Status (Accessible selector):</label>
+        <select id="modal-status-select" class="form-control" style="max-width: 200px;">
+          <option value="Backlog">Backlog</option>
+          <option value="To Do">To Do</option>
+          <option value="In Progress">In Progress</option>
+          <option value="Review">Review</option>
+          <option value="Done">Done</option>
+        </select>
+      </div>
+    {% endif %}
+
+    <!-- Time Logging Section (SRS FR-10) -->
+    <div style="margin-top: 1.5rem; border-top: 1px solid var(--card-border); padding-top: 1rem;">
+      <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Logged Time</h3>
+      <div id="modal-timelogs-list" style="margin-bottom: 1rem;"></div>
+
+      {% if not project.is_archived %}
+        <form onsubmit="window.kanban.logTime(event)" style="display: flex; gap: 0.5rem; align-items: flex-end;">
+          <div style="width: 110px;">
+            <label class="form-label" style="font-size: 0.75rem;">Hours (0.25 step)</label>
+            <input type="number" step="0.25" min="0.25" id="new-time-hours" class="form-control" placeholder="1.25" required>
+          </div>
+          <div style="flex: 1;">
+            <label class="form-label" style="font-size: 0.75rem;">Note</label>
+            <input type="text" id="new-time-note" class="form-control" placeholder="Work summary...">
+          </div>
+          <button type="submit" class="btn btn-secondary" style="height: 38px;">Log</button>
+        </form>
+      {% endif %}
+    </div>
+
+    <!-- Comments Thread Section (SRS FR-12) -->
+    <div style="margin-top: 1.5rem; border-top: 1px solid var(--card-border); padding-top: 1rem;">
+      <h3 style="font-size: 1rem; margin-bottom: 0.5rem;">Comments</h3>
+      <div id="modal-comments-list" style="max-height: 200px; overflow-y: auto; margin-bottom: 1rem;"></div>
+
+      {% if not project.is_archived %}
+        <form onsubmit="window.kanban.postComment(event)" style="display: flex; gap: 0.5rem;">
+          <input type="text" id="new-comment-text" class="form-control" placeholder="Write a comment..." required>
+          <button type="submit" class="btn btn-primary">Post</button>
+        </form>
+      {% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Invite Member (Owner only - FR-04, FR-17) -->
+{% if is_owner %}
+<div class="modal-overlay" id="invite-member-modal">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h2 style="font-size: 1.25rem;">Invite Project Member</h2>
+      <button class="modal-close" aria-label="Close modal">&times;</button>
+    </div>
+    <form method="POST" action="{% url 'projects:project_members' project_id=project.id %}">
+      {% csrf_token %}
+      <div class="form-group">
+        <label for="invite-email" class="form-label">User Email Address *</label>
+        <input type="email" name="email" id="invite-email" class="form-control" required placeholder="collaborator@example.com">
+      </div>
+      <div class="form-group">
+        <label for="invite-role" class="form-label">Assigned Role *</label>
+        <select name="role" id="invite-role" class="form-control">
+          <option value="Member" selected>Member (Can edit assigned tasks)</option>
+          <option value="Manager">Manager (Can create & assign tasks)</option>
+          <option value="Owner">Owner (Full administrative rights)</option>
+        </select>
+      </div>
+      <div style="display: flex; justify-content: flex-end; gap: 0.75rem; margin-top: 1.5rem;">
+        <button type="button" class="btn btn-secondary btn-modal-close">Cancel</button>
+        <button type="submit" class="btn btn-primary" id="btn-submit-invite">Send Invite</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="{% static 'js/board.js' %}"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', () => {
+    window.kanban = new KanbanBoard({{ project.id }}, {{ project.is_archived|yesno:"true,false" }});
+  });
+</script>
+{% endblock %}
