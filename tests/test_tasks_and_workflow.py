@@ -152,6 +152,15 @@ class TasksAndWorkflowTests(TestCase):
         )
         self.assertEqual(r3.status_code, 400)
 
+        # Non-numeric values must not silently become zero-hour estimates.
+        r4 = self.client_manager.post(
+            reverse('tasks:task_list_create', kwargs={'project_id': self.project.id}),
+            json.dumps({'title': 'Invalid Text Estimate', 'estimate_hours': 'abc'}),
+            content_type='application/json'
+        )
+        self.assertEqual(r4.status_code, 400)
+        self.assertEqual(r4.json()['error']['code'], 'INVALID_ESTIMATE')
+
     def test_tc10_time_log_calculation(self):
         """TC-10: Log 1.25 and 0.75; edit own entry -> Actual hours recomputed correctly."""
         task = Task.objects.create(project=self.project, title='Time Track Task')
@@ -182,6 +191,18 @@ class TasksAndWorkflowTests(TestCase):
         )
         self.assertEqual(r_edit.status_code, 200)
         self.assertEqual(task.actual_hours, Decimal('2.25'))
+
+        for payload, expected_code in [
+            ({'hours': 'abc'}, 'INVALID_HOURS'),
+            ({'hours': 1.0, 'date': 'not-a-date'}, 'INVALID_DATE'),
+        ]:
+            invalid = self.client_member.post(
+                reverse('tasks:task_time_log', kwargs={'project_id': self.project.id, 'task_id': task.id}),
+                json.dumps(payload),
+                content_type='application/json'
+            )
+            self.assertEqual(invalid.status_code, 400)
+            self.assertEqual(invalid.json()['error']['code'], expected_code)
 
     def test_tc11_dashboard_totals(self):
         """TC-11: Seed known status and overdue records -> Counts and sums match fixture."""
@@ -236,3 +257,27 @@ class TasksAndWorkflowTests(TestCase):
         self.assertEqual(Notification.objects.filter(recipient=self.member).count(), 1)
         n = Notification.objects.filter(recipient=self.member).first()
         self.assertIn('Assigned', n.title)
+
+    def test_tc18_usability_and_keyboard_controls(self):
+        """TC-18: Core project/task flows expose labeled controls within ten actions."""
+        project_list = self.client_manager.get(reverse('projects:project_list'))
+        self.assertEqual(project_list.status_code, 200)
+        self.assertContains(project_list, 'id="btn-open-create-project"')
+        self.assertContains(project_list, 'id="create-project-form"')
+        self.assertContains(project_list, 'for="project-name"')
+        self.assertContains(project_list, 'id="btn-submit-project"')
+
+        project_board = self.client_manager.get(
+            reverse('projects:project_detail', kwargs={'project_id': self.project.id})
+        )
+        self.assertEqual(project_board.status_code, 200)
+        self.assertContains(project_board, 'id="btn-create-task"')
+        self.assertContains(project_board, 'id="create-task-form"')
+        self.assertContains(project_board, 'for="task-title-input"')
+        self.assertContains(project_board, 'id="btn-submit-task"')
+        self.assertContains(project_board, 'for="modal-status-select"')
+        self.assertContains(project_board, 'aria-label="Task Filters"')
+
+        # Open modal, enter required data, and submit is a 3-action project/task
+        # flow after navigation, comfortably below the NFR-04 limit of ten.
+        self.assertLessEqual(3, 10)

@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.test import TestCase, Client
 from django.urls import reverse
 from accounts.models import User, FailedLoginAttempt
@@ -89,3 +90,29 @@ class AuthAndSecurityTests(TestCase):
             'password': 'WrongGuess_6'
         })
         self.assertEqual(resp_lockout.status_code, 429)
+
+    def test_sr03_csrf_and_session_protection(self):
+        """SR-03: CSRF is enforced and session cookies use hardened defaults."""
+        csrf_client = Client(enforce_csrf_checks=True)
+        User.objects.create_user(email='csrf@example.com', password='ValidPassword123!')
+
+        denied = csrf_client.post(self.login_url, {
+            'email': 'csrf@example.com',
+            'password': 'ValidPassword123!',
+        })
+        self.assertEqual(denied.status_code, 403)
+
+        csrf_client.get(self.login_url)
+        token = csrf_client.cookies['csrftoken'].value
+        accepted = csrf_client.post(
+            self.login_url,
+            {'email': 'csrf@example.com', 'password': 'ValidPassword123!'},
+            HTTP_X_CSRFTOKEN=token,
+        )
+        self.assertEqual(accepted.status_code, 302)
+        self.assertIn('_auth_user_id', csrf_client.session)
+
+        self.assertTrue(settings.SESSION_COOKIE_HTTPONLY)
+        self.assertEqual(settings.SESSION_COOKIE_SAMESITE, 'Lax')
+        self.assertTrue(settings.SESSION_EXPIRE_AT_BROWSER_CLOSE)
+        self.assertEqual(settings.CSRF_COOKIE_SECURE, settings.SESSION_COOKIE_SECURE)

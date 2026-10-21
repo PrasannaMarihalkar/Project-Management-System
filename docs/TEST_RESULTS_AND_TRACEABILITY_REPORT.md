@@ -3,14 +3,15 @@
 **Version:** 1.0  
 **Test Suite:** Automated Django Test Runner (`tests/`)  
 **Execution Date:** October 2026  
-**Build Status:** PASSED (16 / 16 Test Cases Passed &bull; 100% Pass Rate)
+**Student:** Tilak Kumta (`PES1UG24CS696`)<br>
+**Build Status:** PASSED (19 / 19 Automated Test Methods &bull; 100% Pass Rate)
 
 ---
 
 ## 1. Executive Summary
 This report documents the verification and validation of **Project 27: Project Management System** against the requirements specified in **SRS v1.0** and the test specifications outlined in the **Software Test Plan (STP v1.0)**.
 
-All 18 planned acceptance tests (`TC-01` through `TC-18`) were executed automatically via the integrated test suite. Zero critical defects remain, and all high-priority security and functional requirements have passed.
+All 18 planned acceptance scenarios (`TC-01` through `TC-18`) were covered by 19 automated test methods in the integrated suite. The extra method isolates the `SR-03` CSRF/session checks so failures are reported independently. Zero critical defects remain, and all high-priority security and functional requirements have passed.
 
 ---
 
@@ -26,16 +27,16 @@ All 18 planned acceptance tests (`TC-01` through `TC-18`) were executed automati
 | **TC-06** | `FR-06`, `SR-01` | Assignee updates title; assignee attempts to modify estimate; outsider accesses task. | Title saved; forbidden field edit rejected with HTTP 403; outsider receives HTTP 404. | Title updated; estimate alteration denied (403); outsider blocked (404). | **PASS** |
 | **TC-07** | `FR-07`, `FR-13` | Move task from Backlog to In Progress via status transition API. | Task status updated; transition atomically recorded in `ActivityEvent` audit log. | Status updated to `In Progress`; `TASK_MOVED` event recorded with actor and timestamp. | **PASS** |
 | **TC-08** | `FR-08` | Apply combined filters for Assignee and Priority on project board. | Display only tasks matching the exact intersection of both criteria. | Filter returned intersection only; non-matching tasks omitted. | **PASS** |
-| **TC-09** | `FR-09` | Submit task estimates of 2.5h, -1.0h, and 2.3h. | 2.5h accepted; -1.0h and 2.3h rejected (must be $\ge 0$ in 0.5h steps). | 2.5h saved; negative and non-step values rejected with HTTP 400. | **PASS** |
-| **TC-10** | `FR-10`, `FR-11` | Member logs 1.25h and 0.75h; edits existing entry to 1.50h. | Actual hours recomputed to 2.00h, then to 2.25h upon edit. | Time entries stored; `task.actual_hours` computed accurately. | **PASS** |
+| **TC-09** | `FR-09` | Submit task estimates of 2.5h, -1.0h, 2.3h, and non-numeric text. | 2.5h accepted; negative, non-step, and non-numeric values rejected. | 2.5h saved; invalid values returned `INVALID_ESTIMATE` with HTTP 400. | **PASS** |
+| **TC-10** | `FR-10`, `FR-11` | Member logs 1.25h and 0.75h; edits an entry; submits invalid hours/date. | Actual hours recomputed; malformed numeric/date inputs rejected cleanly. | Total changed from 2.00h to 2.25h; invalid values returned structured HTTP 400 errors. | **PASS** |
 | **TC-11** | `FR-11` | Query progress dashboard for seeded project with active and overdue tasks. | Displayed status counts, overdue count, and hour totals match database records. | Dashboard counts and hours matched stored records exactly. | **PASS** |
 | **TC-12** | `FR-12`, `FR-14` | Post task comment; execute keyword search across two separate projects. | Comments ordered chronologically; search strictly scoped to authorized project. | Comments displayed in time order; cross-project tasks excluded from search. | **PASS** |
 | **TC-13** | `FR-15`, `FR-16` | Export tasks to CSV; Owner archives project; attempt task mutation in archived project. | CSV contains required fields; archived project is read-only; mutation returns 409 Conflict. | CSV streamed with headers; archive sets timestamp; mutation rejected with HTTP 409. | **PASS** |
 | **TC-14** | `FR-17` | Assign task to project member. | Target member receives exactly one in-app notification. | One `Notification` record created for assignee with direct task link. | **PASS** |
-| **TC-15** | `SR-02`–`SR-05` | Inspect password hash, CSRF protection, script injection payload, and 5 consecutive failed logins. | Passwords hashed with PBKDF2; scripts encoded; 6th failed attempt blocked (HTTP 429). | Hashes verified; output escaped; 15-minute lockout enforced on 6th failed attempt. | **PASS** |
-| **TC-16** | `NFR-01`, `NFR-02`| Seed project with 500 tasks; perform bulk query and board retrieval. | All 500 records returned without truncation or data loss. | 500 tasks queried and serialized within performance envelope. | **PASS** |
-| **TC-17** | `NFR-03` | Inject transaction rollback and test committed data survival. | Committed transactions persist; aborted operations roll back completely. | Data integrity maintained across application cycles. | **PASS** |
-| **TC-18** | `NFR-04`–`NFR-06`| Verify keyboard accessibility, tab indices, and interaction counts at 1280x720 resolution. | Project/task creation completed in $\le 10$ actions; keyboard status change functional. | Flows completed in $\le 6$ interactions; accessible selectors verified. | **PASS** |
+| **TC-15** | `SR-02`–`SR-05` | Inspect password hash and cookie settings; enforce CSRF token; perform 5 failed logins. | Passwords hashed; tokenless mutation blocked; hardened cookie policy enabled; 6th failed attempt blocked. | PBKDF2/Argon2 hash accepted; CSRF returned 403 without token; session policy verified; lockout returned 429. | **PASS** |
+| **TC-16** | `NFR-01`, `NFR-02`| Seed one project with 500 tasks, 20 members, and 2,000 activity events; retrieve the board. | All capacity targets persist and 500 tasks return without truncation. | Exact database counts verified; all 500 tasks serialized successfully. | **PASS** |
+| **TC-17** | `NFR-03` | Commit one task, then force an exception after inserting a task and audit event in one atomic block. | Committed transaction remains; both aborted rows roll back completely. | Committed row survived refresh; task and event from aborted block were absent. | **PASS** |
+| **TC-18** | `NFR-04`–`NFR-06`| Inspect rendered project/task forms, labels, stable control IDs, filter landmark, and keyboard status selector. | Core creation flows require fewer than 10 actions and expose labeled keyboard controls. | Required form controls and accessible selector rendered; each creation flow needs 3 post-navigation actions. | **PASS** |
 
 ---
 
@@ -83,3 +84,12 @@ NFR-06 (Browser Compat)    Standard HTML5/Vanilla JS  TC-18              VERIFIE
 - **Defect ID #2**: SQLite aggregation return type difference for decimal formatting in dashboard API.
   - *Resolution*: Applied explicit 2-decimal place formatting `f"{Decimal(str(total_estimated)):.2f}"`.
   - *Regression Result*: Re-executed test suite; confirmed exact match against test fixture.
+- **Defect ID #3**: Non-numeric estimates and time values silently fell back to zero.
+  - *Resolution*: Decimal parsing now returns an explicit invalid state; APIs return structured `INVALID_ESTIMATE` or `INVALID_HOURS` errors.
+  - *Regression Result*: Added malformed-input cases to TC-09 and TC-10; both pass.
+- **Defect ID #4**: TC-16 and TC-17 documentation overstated capacity and rollback coverage.
+  - *Resolution*: Added exact 20-member/500-task/2,000-event fixtures and a forced atomic rollback test.
+  - *Regression Result*: Both exact counts and absence of partial rows are asserted.
+- **Defect ID #5**: The canonical project owner could demote their own membership.
+  - *Resolution*: Reject owner demotion with `OWNER_ROLE_REQUIRED` while preserving authorized role management for other members.
+  - *Regression Result*: TC-04 verifies the invariant and unauthorized member denial.

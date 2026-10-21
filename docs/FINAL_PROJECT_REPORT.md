@@ -1,7 +1,8 @@
 # Final Project Report & Sprint Demonstration Guide
 **Project 27: Project Management System**  
 **Course:** Software Engineering Mini-Project  
-**Author / Lead:** Tilak-2005 & Team  
+**Student:** Tilak Kumta<br>
+**SRN:** PES1UG24CS696<br>
 **Deliverable Reference:** DOC-03 (Issue #41)
 
 ---
@@ -68,7 +69,7 @@ When recording your project evaluation demonstration or presenting to evaluators
    - Show that task drag-and-drop is disabled and creation attempts return a conflict.
 3. **Automated CI Test Suite (`ENG-06`, `TEST-01`–`TEST-04`)**:
    - Open terminal and run `python manage.py test --verbosity=2`.
-   - Show that all 16 test cases covering `TC-01` through `TC-18` pass with 100% success rate.
+   - Show that all 19 automated test methods covering `TC-01` through `TC-18` pass with 100% success rate.
 
 ---
 

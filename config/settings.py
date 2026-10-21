@@ -14,6 +14,10 @@ SECRET_KEY = os.getenv('DJANGO_SECRET_KEY', 'django-insecure-project-mgmt-sys-de
 
 DEBUG = os.getenv('DJANGO_DEBUG', 'True') == 'True'
 
+
+def env_bool(name, default=False):
+    return os.getenv(name, str(default)).strip().lower() in {'1', 'true', 'yes', 'on'}
+
 ALLOWED_HOSTS = ['*']
 
 INSTALLED_APPS = [
@@ -107,8 +111,11 @@ LOGOUT_REDIRECT_URL = 'accounts:login'
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = 'Lax'
 SESSION_COOKIE_AGE = 86400  # 1 day
+SESSION_EXPIRE_AT_BROWSER_CLOSE = True
+SESSION_COOKIE_SECURE = env_bool('DJANGO_SECURE_COOKIES', not DEBUG)
 
 CSRF_COOKIE_HTTPONLY = False  # Allows JS to read for fetch API header
 CSRF_COOKIE_SAMESITE = 'Lax'
+CSRF_COOKIE_SECURE = SESSION_COOKIE_SECURE
 
 MESSAGE_STORAGE = 'django.contrib.messages.storage.session.SessionStorage'
