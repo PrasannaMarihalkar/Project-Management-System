@@ -485,3 +485,91 @@ a:hover {
   font-weight: 700;
   color: var(--text-main);
 }
+
+/* SR-05: Rate Limiting & Lockout UI */
+.lockout-banner {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.15), rgba(185, 28, 28, 0.25));
+  border: 1px solid rgba(239, 68, 68, 0.4);
+  border-radius: var(--radius-md);
+  padding: 1rem 1.25rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.15);
+  animation: pulse-border 2s infinite ease-in-out;
+}
+
+.lockout-banner.expired {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.15), rgba(5, 150, 105, 0.25));
+  border-color: rgba(16, 185, 129, 0.5);
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+  animation: none;
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: rgba(239, 68, 68, 0.4); }
+  50% { border-color: rgba(239, 68, 68, 0.8); }
+}
+
+.lockout-header {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  color: #f87171;
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+.lockout-banner.expired .lockout-header {
+  color: #34d399;
+}
+
+.lockout-body {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.countdown-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  color: var(--text-main);
+}
+
+.lockout-banner.expired .countdown-container {
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.countdown-digits {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #fca5a5;
+  letter-spacing: 0.05em;
+}
+
+.lockout-banner.expired .countdown-digits {
+  color: #6ee7b7;
+}
+
+.attempts-warning {
+  background: rgba(245, 158, 11, 0.15);
+  border: 1px solid rgba(245, 158, 11, 0.4);
+  border-radius: var(--radius-sm);
+  padding: 0.6rem 0.85rem;
+  margin-bottom: 1rem;
+  font-size: 0.85rem;
+  color: #fcd34d;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+

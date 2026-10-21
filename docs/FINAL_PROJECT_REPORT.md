@@ -1,8 +1,12 @@
 # Final Project Report & Sprint Demonstration Guide
 **Project 27: Project Management System**  
 **Course:** Software Engineering Mini-Project  
-**Student:** Tilak Kumta<br>
-**SRN:** PES1UG24CS696<br>
+**Project Team (Group 27):**
+- **Tilak** &bull; `PES1UG24CS696`
+- **Shravankumar Patil** &bull; `PES1UG24CS692`
+- **Sachin** &bull; `PES1UG24CS688`
+- **Prasanna** &bull; `PES1UG24CS84`
+
 **Deliverable Reference:** DOC-03 (Issue #41)
 
 ---
@@ -11,7 +15,7 @@
 The Project Management System is a robust web-based workflow management platform built using a clean, layered monolithic architecture in Django. During the development iterations, all requirements defined across **SRS v1.0**, **SAD v1.0**, and **STP v1.0** were implemented, tested, and integrated.
 
 ### Summary of Completed Modules:
-1. **Security & Accounts Module**: Custom user model with unique email identity, PBKDF2 password hashing, and brute-force lockout enforcing a 15-minute freeze after 5 failed sign-in attempts within 15 minutes.
+1. **Security & Accounts Module**: Custom user model with unique email identity, PBKDF2 password hashing, and brute-force lockout enforcing a 15-minute freeze after 5 failed sign-in attempts within 15 minutes (`SR-05`), complete with standard RFC 6585 `Retry-After` HTTP headers, attempt countdown warnings, and an animated client-side live lockout countdown.
 2. **Project & Multi-Tenant Authorization**: Project workspace scoping where creators become Owners. Owner can invite members as `Owner`, `Manager`, or `Member`. Server-side centralized authorization rejects cross-project requests with HTTP 403 or 404. Archiving locks the project into a read-only state, returning HTTP 409 Conflict upon mutation attempts.
 3. **Task & Kanban Board Engine**: Full 5-stage lifecycle (`Backlog`, `To Do`, `In Progress`, `Review`, `Done`) featuring drag-and-drop mechanics, keyboard navigation, optimistic concurrency version checks, and multi-filter intersection (Assignee, Priority, Due Status).
 4. **Effort Tracking & Dashboard**: Estimation bounds (0.5h step $\ge 0$), time logging (0.25h step), progress dashboard calculating status counts, overdue counts, and total hours, and CSV task export.
@@ -30,8 +34,10 @@ When recording your project evaluation demonstration or presenting to evaluators
    - Register a user with email `alice@example.com` and password.
    - Attempt to register the exact same email again &rarr; Demonstrate the duplicate rejection error message.
 2. **Brute-Force Rate Limiting (`SR-05`, `TC-15`)**:
-   - Attempt to log in with an incorrect password 5 times in succession.
-   - Show that on the 6th attempt, the application locks out the account with a clear 15-minute countdown alert (`HTTP 429`).
+   - Attempt to log in with an incorrect password. Demonstrate the dynamic security notice displaying remaining attempts (e.g., "4 attempts remaining before a 15-minute account lockout").
+   - Continue entering incorrect passwords until 5 failed attempts are reached.
+   - Show that on the 6th attempt, the application locks out the account with HTTP 429 (`Too Many Requests`), returns a standard `Retry-After` header, disables input controls, and renders a glassmorphic animated banner with a live minute:second countdown (`#lockout-countdown`).
+   - Demonstrate that upon timer expiry, form inputs and submit button are re-enabled automatically.
 
 ### Part 2: Project Creation & Role Management (2 mins)
 1. **Create Project (`FR-03`, `TC-03`)**:

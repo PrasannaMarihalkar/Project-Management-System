@@ -2,7 +2,11 @@
 **Software Engineering Mini-Project &bull; Group 27**  
 *Comprehensive Web-Based Project Management, Kanban Workflow, and Traceability Platform*
 
-**Student:** Tilak Kumta (`PES1UG24CS696`)
+**Project Team (Group 27):**
+- **Tilak** (`PES1UG24CS696`)
+- **Shravankumar Patil** (`PES1UG24CS692`)
+- **Sachin** (`PES1UG24CS688`)
+- **Prasanna** (`PES1UG24CS84`)
 
 ---
 

@@ -109,17 +109,35 @@ def login_view(request):
         if is_json:
             return JsonResponse({'error': {'code': 'BAD_REQUEST', 'message': msg}}, status=400)
         messages.error(request, msg)
-        return render(request, 'accounts/login.html', status=400)
+        return render(request, 'accounts/login.html', {'email': email}, status=400)
 
     ip_address = get_client_ip(request)
 
     # Check SR-05 Lockout
     if FailedLoginAttempt.is_locked(email):
-        msg = "Too many failed login attempts. Account temporarily locked for 15 minutes."
+        remaining_seconds = FailedLoginAttempt.get_lockout_remaining_seconds(email)
+        remaining_minutes = max(1, (remaining_seconds + 59) // 60)
+        msg = f"Too many failed login attempts. Account temporarily locked for {remaining_minutes} minute{'s' if remaining_minutes != 1 else ''}."
         if is_json:
-            return JsonResponse({'error': {'code': 'LOCKED_OUT', 'message': msg}}, status=429)
+            response = JsonResponse({
+                'error': {
+                    'code': 'LOCKED_OUT',
+                    'message': msg,
+                    'retry_after_seconds': remaining_seconds
+                }
+            }, status=429)
+            response['Retry-After'] = str(remaining_seconds)
+            return response
+
         messages.error(request, msg)
-        return render(request, 'accounts/login.html', status=429)
+        response = render(request, 'accounts/login.html', {
+            'locked_out': True,
+            'retry_after_seconds': remaining_seconds,
+            'remaining_minutes': remaining_minutes,
+            'email': email,
+        }, status=429)
+        response['Retry-After'] = str(remaining_seconds)
+        return response
 
     user = authenticate(request, email=email, password=password)
     if user is not None:
@@ -137,15 +155,27 @@ def login_view(request):
     else:
         # Record failure (SR-05)
         FailedLoginAttempt.record_failure(email, ip_address)
-        remaining = 5 - FailedLoginAttempt.objects.filter(
-            email__iexact=email,
-            attempt_time__gte=FailedLoginAttempt._meta.get_field('attempt_time').model.objects.none()
-        ).count()
-        msg = "Invalid email or password."
+        attempts_left = FailedLoginAttempt.get_remaining_attempts(email)
+
+        if attempts_left > 0:
+            msg = f"Invalid email or password. {attempts_left} attempt{'s' if attempts_left != 1 else ''} remaining before a 15-minute account lockout."
+        else:
+            msg = "Invalid email or password. Maximum failed attempts reached. Account is now locked for 15 minutes."
+
         if is_json:
-            return JsonResponse({'error': {'code': 'INVALID_CREDENTIALS', 'message': msg}}, status=401)
+            return JsonResponse({
+                'error': {
+                    'code': 'INVALID_CREDENTIALS',
+                    'message': msg,
+                    'attempts_remaining': attempts_left
+                }
+            }, status=401)
+
         messages.error(request, msg)
-        return render(request, 'accounts/login.html', status=401)
+        return render(request, 'accounts/login.html', {
+            'email': email,
+            'attempts_remaining': attempts_left,
+        }, status=401)
 
 
 @require_http_methods(['GET', 'POST'])

@@ -10,19 +10,49 @@
       <p style="color: var(--text-muted); font-size: 0.85rem;">SRS FR-02 & SR-05: Authenticated Sessions & Rate Limiting</p>
     </div>
 
+    {% if locked_out %}
+      <div class="lockout-banner" id="lockout-banner" role="alert" aria-live="assertive">
+        <div class="lockout-header">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          <span id="lockout-title">Security Lockout Active (SR-05)</span>
+        </div>
+        <div class="lockout-body" id="lockout-desc">
+          Sign-in is temporarily disabled after 5 consecutive failed attempts. Please wait for the lockout window to expire before trying again.
+        </div>
+        <div class="countdown-container">
+          <span>Unlocking in:&nbsp;</span>
+          <span class="countdown-digits" id="lockout-countdown" aria-label="Lockout countdown timer">--:--</span>
+        </div>
+      </div>
+    {% elif attempts_remaining is not None and attempts_remaining < 5 %}
+      <div class="attempts-warning" id="attempts-warning" role="alert">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+          <line x1="12" y1="9" x2="12" y2="13"></line>
+          <line x1="12" y1="17" x2="12.01" y2="17"></line>
+        </svg>
+        <span>
+          <strong>Security Notice:</strong> {{ attempts_remaining }} attempt{{ attempts_remaining|pluralize }} remaining before a 15-minute account lockout.
+        </span>
+      </div>
+    {% endif %}
+
     <form method="POST" action="{% url 'accounts:login' %}" novalidate id="login-form">
       {% csrf_token %}
       <div class="form-group">
         <label for="email" class="form-label">Email Address *</label>
-        <input type="email" name="email" id="email" class="form-control" required placeholder="name@example.com" autocomplete="email">
+        <input type="email" name="email" id="email" class="form-control" required placeholder="name@example.com" autocomplete="email" value="{{ email|default:'' }}" {% if locked_out %}disabled{% endif %}>
       </div>
 
       <div class="form-group">
         <label for="password" class="form-label">Password *</label>
-        <input type="password" name="password" id="password" class="form-control" required placeholder="••••••••" autocomplete="current-password">
+        <input type="password" name="password" id="password" class="form-control" required placeholder="••••••••" autocomplete="current-password" {% if locked_out %}disabled{% endif %}>
       </div>
 
-      <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;" id="btn-submit-login">
+      <button type="submit" class="btn btn-primary" style="width: 100%; margin-top: 0.5rem;" id="btn-submit-login" {% if locked_out %}disabled{% endif %}>
         Sign In
       </button>
     </form>
@@ -32,4 +62,52 @@
     </div>
   </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% if locked_out %}
+<script>
+  (function() {
+    let remainingSeconds = parseInt("{{ retry_after_seconds|default:900 }}", 10);
+    const countdownEl = document.getElementById('lockout-countdown');
+    const bannerEl = document.getElementById('lockout-banner');
+    const titleEl = document.getElementById('lockout-title');
+    const descEl = document.getElementById('lockout-desc');
+    const submitBtn = document.getElementById('btn-submit-login');
+    const emailInput = document.getElementById('email');
+    const passwordInput = document.getElementById('password');
+
+    function formatTime(totalSeconds) {
+      const minutes = Math.floor(totalSeconds / 60);
+      const seconds = totalSeconds % 60;
+      return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+    }
+
+    function updateTimer() {
+      if (remainingSeconds <= 0) {
+        clearInterval(timerInterval);
+        if (countdownEl) countdownEl.textContent = "00:00";
+        if (bannerEl) bannerEl.classList.add('expired');
+        if (titleEl) titleEl.textContent = "Lockout Period Expired";
+        if (descEl) descEl.textContent = "You may now attempt to sign in again. Please enter your correct credentials.";
+        if (submitBtn) submitBtn.disabled = false;
+        if (emailInput) emailInput.disabled = false;
+        if (passwordInput) {
+          passwordInput.disabled = false;
+          passwordInput.focus();
+        }
+        return;
+      }
+
+      if (countdownEl) {
+        countdownEl.textContent = formatTime(remainingSeconds);
+      }
+      remainingSeconds--;
+    }
+
+    updateTimer();
+    const timerInterval = setInterval(updateTimer, 1000);
+  })();
+</script>
+{% endif %}
 {% endblock %}

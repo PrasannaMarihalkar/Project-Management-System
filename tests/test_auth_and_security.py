@@ -83,13 +83,37 @@ class AuthAndSecurityTests(TestCase):
                 'password': f'WrongGuess_{i}'
             })
             self.assertEqual(resp.status_code, 401)
+            self.assertEqual(resp.context['attempts_remaining'], 5 - (i + 1))
 
-        # 6th attempt should be locked out (HTTP 429)
+        # 6th attempt should be locked out (HTTP 429) with Retry-After header and context
         resp_lockout = self.client.post(self.login_url, {
             'email': 'securityuser@example.com',
             'password': 'WrongGuess_6'
         })
         self.assertEqual(resp_lockout.status_code, 429)
+        self.assertIn('Retry-After', resp_lockout.headers)
+        self.assertTrue(resp_lockout.context['locked_out'])
+        self.assertGreater(resp_lockout.context['retry_after_seconds'], 0)
+
+        # JSON endpoint lockout verification
+        resp_json = self.client.post(
+            self.login_url,
+            '{"email": "securityuser@example.com", "password": "WrongGuess_json"}',
+            content_type='application/json'
+        )
+        self.assertEqual(resp_json.status_code, 429)
+        self.assertEqual(resp_json.json()['error']['code'], 'LOCKED_OUT')
+        self.assertIn('retry_after_seconds', resp_json.json()['error'])
+        self.assertIn('Retry-After', resp_json.headers)
+
+        # Unlock and verify successful login clears failures
+        FailedLoginAttempt.clear_failures('securityuser@example.com')
+        resp_success = self.client.post(self.login_url, {
+            'email': 'securityuser@example.com',
+            'password': raw_pw
+        })
+        self.assertEqual(resp_success.status_code, 302)
+        self.assertFalse(FailedLoginAttempt.is_locked('securityuser@example.com'))
 
     def test_sr03_csrf_and_session_protection(self):
         """SR-03: CSRF is enforced and session cookies use hardened defaults."""

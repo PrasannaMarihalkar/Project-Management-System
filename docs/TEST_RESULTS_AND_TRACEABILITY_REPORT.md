@@ -3,7 +3,11 @@
 **Version:** 1.0  
 **Test Suite:** Automated Django Test Runner (`tests/`)  
 **Execution Date:** October 2026  
-**Student:** Tilak Kumta (`PES1UG24CS696`)<br>
+**Project Team (Group 27):**
+- **Tilak** (`PES1UG24CS696`)
+- **Shravankumar Patil** (`PES1UG24CS692`)
+- **Sachin** (`PES1UG24CS688`)
+- **Prasanna** (`PES1UG24CS84`)<br>
 **Build Status:** PASSED (19 / 19 Automated Test Methods &bull; 100% Pass Rate)
 
 ---
@@ -33,7 +37,7 @@ All 18 planned acceptance scenarios (`TC-01` through `TC-18`) were covered by 19
 | **TC-12** | `FR-12`, `FR-14` | Post task comment; execute keyword search across two separate projects. | Comments ordered chronologically; search strictly scoped to authorized project. | Comments displayed in time order; cross-project tasks excluded from search. | **PASS** |
 | **TC-13** | `FR-15`, `FR-16` | Export tasks to CSV; Owner archives project; attempt task mutation in archived project. | CSV contains required fields; archived project is read-only; mutation returns 409 Conflict. | CSV streamed with headers; archive sets timestamp; mutation rejected with HTTP 409. | **PASS** |
 | **TC-14** | `FR-17` | Assign task to project member. | Target member receives exactly one in-app notification. | One `Notification` record created for assignee with direct task link. | **PASS** |
-| **TC-15** | `SR-02`–`SR-05` | Inspect password hash and cookie settings; enforce CSRF token; perform 5 failed logins. | Passwords hashed; tokenless mutation blocked; hardened cookie policy enabled; 6th failed attempt blocked. | PBKDF2/Argon2 hash accepted; CSRF returned 403 without token; session policy verified; lockout returned 429. | **PASS** |
+| **TC-15** | `SR-02`–`SR-05` | Inspect password hash and cookie settings; enforce CSRF token; perform 5 failed logins, verify 6th lockout and retry header. | Passwords hashed; tokenless mutation blocked; hardened cookie policy enabled; 6th failed attempt blocked with HTTP 429 and Retry-After header. | PBKDF2 hash accepted; CSRF returned 403; session policy verified; 6th attempt locked with HTTP 429, Retry-After header, JSON error structure, and reset upon valid login verified. | **PASS** |
 | **TC-16** | `NFR-01`, `NFR-02`| Seed one project with 500 tasks, 20 members, and 2,000 activity events; retrieve the board. | All capacity targets persist and 500 tasks return without truncation. | Exact database counts verified; all 500 tasks serialized successfully. | **PASS** |
 | **TC-17** | `NFR-03` | Commit one task, then force an exception after inserting a task and audit event in one atomic block. | Committed transaction remains; both aborted rows roll back completely. | Committed row survived refresh; task and event from aborted block were absent. | **PASS** |
 | **TC-18** | `NFR-04`–`NFR-06`| Inspect rendered project/task forms, labels, stable control IDs, filter landmark, and keyboard status selector. | Core creation flows require fewer than 10 actions and expose labeled keyboard controls. | Required form controls and accessible selector rendered; each creation flow needs 3 post-navigation actions. | **PASS** |

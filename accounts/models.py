@@ -58,16 +58,68 @@ class FailedLoginAttempt(models.Model):
         ordering = ['-attempt_time']
 
     @classmethod
+    def get_window_minutes(cls):
+        from django.conf import settings
+        return getattr(settings, 'FAILED_LOGIN_LOCKOUT_MINUTES', 15)
+
+    @classmethod
+    def get_max_attempts(cls):
+        from django.conf import settings
+        return getattr(settings, 'FAILED_LOGIN_LIMIT', 5)
+
+    @classmethod
+    def get_failed_attempts_count(cls, email):
+        """Returns the number of failed attempts within the sliding window."""
+        if not email:
+            return 0
+        window_start = timezone.now() - timedelta(minutes=cls.get_window_minutes())
+        return cls.objects.filter(email__iexact=email.strip(), attempt_time__gte=window_start).count()
+
+    @classmethod
     def is_locked(cls, email):
-        """Check if 5 or more failed attempts occurred in the last 15 minutes."""
-        window_start = timezone.now() - timedelta(minutes=15)
-        count = cls.objects.filter(email__iexact=email, attempt_time__gte=window_start).count()
-        return count >= 5
+        """Check if failed attempts meet or exceed the maximum allowed in the last 15 minutes."""
+        return cls.get_failed_attempts_count(email) >= cls.get_max_attempts()
+
+    @classmethod
+    def get_remaining_attempts(cls, email):
+        """Returns remaining attempts allowed before 15-minute lockout."""
+        count = cls.get_failed_attempts_count(email)
+        return max(0, cls.get_max_attempts() - count)
+
+    @classmethod
+    def get_lockout_remaining_seconds(cls, email):
+        """
+        Returns seconds remaining until lockout expires, or 0 if not locked.
+        In a sliding-window limiter, unlocking occurs when the 5th most recent
+        attempt ages past the 15-minute window.
+        """
+        if not email:
+            return 0
+        max_attempts = cls.get_max_attempts()
+        window_minutes = cls.get_window_minutes()
+        window_start = timezone.now() - timedelta(minutes=window_minutes)
+
+        recent_attempts = list(
+            cls.objects.filter(email__iexact=email.strip(), attempt_time__gte=window_start)
+            .order_by('-attempt_time')
+            .values_list('attempt_time', flat=True)[:max_attempts]
+        )
+        if len(recent_attempts) < max_attempts:
+            return 0
+
+        oldest_blocking_attempt = recent_attempts[max_attempts - 1]
+        unlock_time = oldest_blocking_attempt + timedelta(minutes=window_minutes)
+        remaining = (unlock_time - timezone.now()).total_seconds()
+        return max(0, int(remaining))
 
     @classmethod
     def record_failure(cls, email, ip_address=None):
-        cls.objects.create(email=email.lower().strip(), ip_address=ip_address)
+        if email:
+            return cls.objects.create(email=email.lower().strip(), ip_address=ip_address)
+        return None
 
     @classmethod
     def clear_failures(cls, email):
-        cls.objects.filter(email__iexact=email).delete()
+        if email:
+            cls.objects.filter(email__iexact=email.strip()).delete()
+
