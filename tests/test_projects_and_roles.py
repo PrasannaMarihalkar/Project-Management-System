@@ -1,9 +1,11 @@
 import json
 from decimal import Decimal
+from django.db import transaction
 from django.test import TestCase, Client
 from django.urls import reverse
 from django.utils import timezone
 from accounts.models import User
+from audit.models import ActivityEvent
 from projects.models import Project, Membership
 from tasks.models import Task
 
@@ -64,6 +66,16 @@ class ProjectsAndRolesTests(TestCase):
         )
         self.assertEqual(resp_member_change.status_code, 403)
 
+        # The canonical project owner cannot accidentally remove the last stable
+        # Owner identity while Project.owner still points at that account.
+        resp_owner_demote = self.client_owner.post(
+            reverse('projects:project_member_role_update', kwargs={'project_id': project.id, 'member_user_id': self.owner.id}),
+            json.dumps({'role': Membership.ROLE_MEMBER}),
+            content_type='application/json'
+        )
+        self.assertEqual(resp_owner_demote.status_code, 400)
+        self.assertEqual(resp_owner_demote.json()['error']['code'], 'OWNER_ROLE_REQUIRED')
+
     def test_tc13_csv_export_and_archive(self):
         """TC-13: Export CSV; archive; try editing -> archived edit denied (409)."""
         project = Project.objects.create(name='Gamma Project', owner=self.owner)
@@ -90,12 +102,17 @@ class ProjectsAndRolesTests(TestCase):
         )
         self.assertEqual(create_resp.status_code, 409)
 
-    def test_tc16_tc17_capacity_and_rollback(self):
-        """
-        TC-16 & TC-17: NFR-02 capacity & NFR-03 transactional rollback reliability.
-        """
+    def test_tc16_capacity_limits(self):
+        """TC-16: Support 500 tasks, 20 members, and 2,000 audit events."""
         project = Project.objects.create(name='Capacity Project', owner=self.owner)
         Membership.objects.create(project=project, user=self.owner, role=Membership.ROLE_OWNER)
+
+        users = [User(email=f'capacity-{i}@example.com') for i in range(19)]
+        User.objects.bulk_create(users)
+        Membership.objects.bulk_create([
+            Membership(project=project, user=user, role=Membership.ROLE_MEMBER)
+            for user in User.objects.filter(email__startswith='capacity-')
+        ])
 
         # Batch create 500 tasks (NFR-02 capacity verification)
         bulk_tasks = [
@@ -103,10 +120,50 @@ class ProjectsAndRolesTests(TestCase):
             for i in range(500)
         ]
         Task.objects.bulk_create(bulk_tasks)
+
+        ActivityEvent.objects.bulk_create([
+            ActivityEvent(
+                project=project,
+                actor=self.owner,
+                action='CAPACITY_TEST',
+                entity_type='Task',
+                entity_id=str(i),
+                details=f'Capacity event #{i}',
+            )
+            for i in range(2000)
+        ])
+
+        self.assertEqual(Membership.objects.filter(project=project).count(), 20)
         self.assertEqual(Task.objects.filter(project=project).count(), 500)
+        self.assertEqual(ActivityEvent.objects.filter(project=project).count(), 2000)
 
         # Verify board request completes cleanly
         resp = self.client_owner.get(reverse('tasks:task_list_create', kwargs={'project_id': project.id}))
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertEqual(len(data['tasks']), 500)
+
+    def test_tc17_transaction_commit_and_rollback(self):
+        """TC-17: Committed data survives refresh; aborted transactions leave no partial rows."""
+        project = Project.objects.create(name='Reliability Project', owner=self.owner)
+        Membership.objects.create(project=project, user=self.owner, role=Membership.ROLE_OWNER)
+
+        with transaction.atomic():
+            committed = Task.objects.create(project=project, title='Committed Task')
+        committed.refresh_from_db()
+        self.assertEqual(committed.title, 'Committed Task')
+
+        with self.assertRaises(RuntimeError):
+            with transaction.atomic():
+                Task.objects.create(project=project, title='Rolled Back Task')
+                ActivityEvent.objects.create(
+                    project=project,
+                    actor=self.owner,
+                    action='ROLLBACK_TEST',
+                    entity_type='Task',
+                    details='This row must be rolled back with the task.',
+                )
+                raise RuntimeError('force transaction rollback')
+
+        self.assertFalse(Task.objects.filter(project=project, title='Rolled Back Task').exists())
+        self.assertFalse(ActivityEvent.objects.filter(project=project, action='ROLLBACK_TEST').exists())

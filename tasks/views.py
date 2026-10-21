@@ -6,6 +6,7 @@ from django.db import models, transaction
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, render, redirect
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.views.decorators.http import require_http_methods, require_POST, require_GET
 from accounts.models import User
 from audit.services import log_audit_event
@@ -14,11 +15,20 @@ from projects.models import Membership, Project
 from projects.permissions import require_project_membership
 from .models import Task, TimeEntry, Comment
 
-def parse_decimal(value, default=Decimal('0.00')):
+def parse_decimal(value):
     try:
         return Decimal(str(value))
     except (InvalidOperation, TypeError, ValueError):
-        return default
+        return None
+
+
+def parse_optional_date(value):
+    """Return a date for a supplied ISO value, None for blank, or False if invalid."""
+    if value in (None, ''):
+        return None
+    if hasattr(value, 'year') and hasattr(value, 'month') and hasattr(value, 'day'):
+        return value
+    return parse_date(str(value)) or False
 
 @require_project_membership()
 @require_http_methods(['GET', 'POST'])
@@ -51,14 +61,14 @@ def task_list_create_view(request, project_id):
             priority = data.get('priority', Task.PRIORITY_MEDIUM)
             assignee_id = data.get('assignee_id')
             estimate_raw = data.get('estimate_hours', 0)
-            due_date = data.get('due_date') or None
+            due_date_raw = data.get('due_date')
         else:
             title = request.POST.get('title', '').strip()
             description = request.POST.get('description', '').strip()
             priority = request.POST.get('priority', Task.PRIORITY_MEDIUM)
             assignee_id = request.POST.get('assignee_id') or None
             estimate_raw = request.POST.get('estimate_hours', 0)
-            due_date = request.POST.get('due_date') or None
+            due_date_raw = request.POST.get('due_date')
 
         # Validate required title (FR-05 / TC-05)
         if not title:
@@ -70,10 +80,18 @@ def task_list_create_view(request, project_id):
 
         # Validate estimate hours: nonnegative, 0.5-hr increments (FR-09 / TC-09)
         estimate_val = parse_decimal(estimate_raw)
-        if estimate_val < 0 or (estimate_val * 2) % 1 != 0:
+        if estimate_val is None or estimate_val < 0 or (estimate_val * 2) % 1 != 0:
             msg = "Estimate must be a non-negative number in 0.5-hour increments."
             if is_json:
                 return JsonResponse({'error': {'code': 'INVALID_ESTIMATE', 'message': msg}}, status=400)
+            messages.error(request, msg)
+            return redirect('projects:project_detail', project_id=project.id)
+
+        due_date = parse_optional_date(due_date_raw)
+        if due_date is False:
+            msg = "Due date must use YYYY-MM-DD format."
+            if is_json:
+                return JsonResponse({'error': {'code': 'INVALID_DATE', 'message': msg}}, status=400)
             messages.error(request, msg)
             return redirect('projects:project_detail', project_id=project.id)
 
@@ -281,11 +299,14 @@ def task_detail_view(request, project_id, task_id):
             task.priority = data['priority']
 
         if 'due_date' in data:
-            task.due_date = data['due_date'] or None
+            due_date = parse_optional_date(data['due_date'])
+            if due_date is False:
+                return JsonResponse({'error': {'code': 'INVALID_DATE', 'message': 'Due date must use YYYY-MM-DD format'}}, status=400)
+            task.due_date = due_date
 
         if is_owner_or_manager and 'estimate_hours' in data:
             est_val = parse_decimal(data['estimate_hours'])
-            if est_val < 0 or (est_val * 2) % 1 != 0:
+            if est_val is None or est_val < 0 or (est_val * 2) % 1 != 0:
                 return JsonResponse({'error': {'code': 'INVALID_ESTIMATE', 'message': 'Estimate must be non-negative 0.5 increment'}}, status=400)
             task.estimate_hours = est_val
 
@@ -409,7 +430,7 @@ def task_time_log_view(request, project_id, task_id):
 
     hours_val = parse_decimal(data.get('hours'))
     # Must be positive and in 0.25-hr increments (FR-10 / TC-10)
-    if hours_val <= 0 or (hours_val * 4) % 1 != 0:
+    if hours_val is None or hours_val <= 0 or (hours_val * 4) % 1 != 0:
         return JsonResponse({
             'error': {
                 'code': 'INVALID_HOURS',
@@ -417,7 +438,15 @@ def task_time_log_view(request, project_id, task_id):
             }
         }, status=400)
 
-    date_val = data.get('date') or timezone.now().date()
+    date_raw = data.get('date')
+    date_val = parse_optional_date(date_raw) if date_raw else timezone.now().date()
+    if date_val is False:
+        return JsonResponse({
+            'error': {
+                'code': 'INVALID_DATE',
+                'message': 'Date must use YYYY-MM-DD format'
+            }
+        }, status=400)
     note = data.get('note', '').strip()
 
     with transaction.atomic():
@@ -478,7 +507,7 @@ def time_entry_detail_view(request, project_id, task_id, entry_id):
         data = request.POST
 
     hours_val = parse_decimal(data.get('hours'))
-    if hours_val <= 0 or (hours_val * 4) % 1 != 0:
+    if hours_val is None or hours_val <= 0 or (hours_val * 4) % 1 != 0:
         return JsonResponse({'error': {'code': 'INVALID_HOURS', 'message': 'Hours must be positive in 0.25 increments'}}, status=400)
 
     with transaction.atomic():

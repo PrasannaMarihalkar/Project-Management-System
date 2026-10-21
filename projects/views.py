@@ -287,6 +287,17 @@ def project_member_role_update_view(request, project_id, member_user_id):
 
     target_membership = get_object_or_404(Membership, project=project, user_id=member_user_id)
 
+    # The canonical project owner must always retain an Owner membership. Without
+    # this guard, an owner could demote themselves and leave the project without a
+    # stable administrative principal even though Project.owner still points to them.
+    if target_membership.user_id == project.owner_id and new_role != Membership.ROLE_OWNER:
+        return JsonResponse({
+            'error': {
+                'code': 'OWNER_ROLE_REQUIRED',
+                'message': 'The project creator must retain the Owner role.'
+            }
+        }, status=400)
+
     with transaction.atomic():
         old_role = target_membership.role
         target_membership.role = new_role

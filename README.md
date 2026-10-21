@@ -2,6 +2,8 @@
 **Software Engineering Mini-Project &bull; Group 27**  
 *Comprehensive Web-Based Project Management, Kanban Workflow, and Traceability Platform*
 
+**Student:** Tilak Kumta (`PES1UG24CS696`)
+
 ---
 
 ## 1. Overview & System Scope
@@ -80,6 +82,11 @@ python manage.py migrate
 python manage.py runserver
 ```
 Access the application at: `http://127.0.0.1:8000/`
+
+For HTTPS deployments, set `DJANGO_DEBUG=False` and
+`DJANGO_SECURE_COOKIES=True` so Django marks session and CSRF cookies as
+`Secure`. The complete JSON endpoint contract is documented in
+[`docs/API_REFERENCE.md`](docs/API_REFERENCE.md).
 
 ---
 
