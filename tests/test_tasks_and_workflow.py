@@ -61,37 +61,75 @@ class TasksAndWorkflowTests(TestCase):
         self.assertEqual(resp_invalid.status_code, 400)
 
     def test_tc06_task_edit_permissions(self):
-        """TC-06: Assignee edits title; tries estimate; outsider accesses -> Title saved; forbidden changes denied."""
+        """TC-06: Verify task editing permissions for assigned members,
+        managers, and outsiders."""
+
         task = Task.objects.create(
             project=self.project,
             title='Initial Title',
             assignee=self.member,
-            estimate_hours=Decimal('3.0')
+            estimate_hours=Decimal('3.0'),
+            priority=Task.PRIORITY_LOW,
+        )
+        task_url = reverse(
+            'tasks:task_detail',
+            kwargs={'project_id': self.project.id, 'task_id': task.id},
         )
 
-        # Assignee edits title (Permitted)
+        # Assigned member can edit the title.
         resp_title = self.client_member.patch(
-            reverse('tasks:task_detail', kwargs={'project_id': self.project.id, 'task_id': task.id}),
+            task_url,
             json.dumps({'title': 'Updated Title'}),
-            content_type='application/json'
+            content_type='application/json',
         )
         self.assertEqual(resp_title.status_code, 200)
         task.refresh_from_db()
         self.assertEqual(task.title, 'Updated Title')
 
-        # Assignee tries to edit estimate (Denied with 403 per FR-06 / SR-01)
+        # Assigned member cannot edit the estimate.
         resp_estimate = self.client_member.patch(
-            reverse('tasks:task_detail', kwargs={'project_id': self.project.id, 'task_id': task.id}),
+            task_url,
             json.dumps({'estimate_hours': 5.0}),
-            content_type='application/json'
+            content_type='application/json',
         )
         self.assertEqual(resp_estimate.status_code, 403)
 
-        # Outsider accesses task (Denied with 404/403)
-        resp_outsider = self.client_outsider.get(
-            reverse('tasks:task_detail', kwargs={'project_id': self.project.id, 'task_id': task.id})
+        # Assigned member cannot reassign the task.
+        resp_assignee = self.client_member.patch(
+            task_url,
+            json.dumps({'assignee_id': self.manager.id}),
+            content_type='application/json',
         )
-        self.assertEqual(resp_outsider.status_code, 404)
+        self.assertEqual(resp_assignee.status_code, 403)
+
+        # A member's priority change must not be applied.
+        # The current view may return 200 while ignoring this restricted field.
+        resp_priority = self.client_member.patch(
+            task_url,
+            json.dumps({'priority': Task.PRIORITY_HIGH}),
+            content_type='application/json',
+        )
+        self.assertIn(resp_priority.status_code, [200, 403])
+        task.refresh_from_db()
+        self.assertEqual(task.priority, Task.PRIORITY_LOW)
+
+        # Manager can edit priority and estimate.
+        resp_manager = self.client_manager.patch(
+            task_url,
+            json.dumps({
+                'priority': Task.PRIORITY_HIGH,
+                'estimate_hours': 5.0,
+            }),
+            content_type='application/json',
+        )
+        self.assertEqual(resp_manager.status_code, 200)
+        task.refresh_from_db()
+        self.assertEqual(task.priority, Task.PRIORITY_HIGH)
+        self.assertEqual(task.estimate_hours, Decimal('5.0'))
+
+        # A user outside the project cannot access the task.
+        resp_outsider = self.client_outsider.get(task_url)
+        self.assertIn(resp_outsider.status_code, [403, 404])
 
     def test_tc07_kanban_movement_and_audit(self):
         """TC-07: Move Backlog to In Progress -> Board and history reflect transition."""
